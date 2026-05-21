@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>ERD — ID Stock Papas Premium</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Courier New',monospace;background:#07080f;color:#e2e8f0;height:100vh;overflow:hidden;display:flex;flex-direction:column;user-select:none}
+#toolbar{display:flex;align-items:center;gap:10px;padding:8px 14px;background:#0c0d18;border-bottom:1px solid #1c1e35;flex-shrink:0;flex-wrap:wrap}
+h1{font-size:13px;font-weight:700;color:#7c8db5;letter-spacing:.08em;text-transform:uppercase;white-space:nowrap}
+#search{background:#13152a;border:1px solid #252842;color:#e2e8f0;padding:4px 9px;border-radius:4px;font-size:11px;width:160px;font-family:inherit;outline:none}
+#search:focus{border-color:#5b6af7}
+.btn{padding:4px 10px;border-radius:4px;border:1px solid #252842;background:#13152a;color:#7c8db5;font-size:10px;cursor:pointer;font-family:inherit;white-space:nowrap;transition:all .15s}
+.btn:hover{background:#1e2240;color:#c8d0e8}
+.btn.on{border-color:#5b6af7;color:#a0aaff;background:#1a1f48}
+#stats{margin-left:auto;font-size:10px;color:#3d4566;white-space:nowrap}
+#legend{display:flex;gap:8px;padding:5px 14px;background:#090a16;border-bottom:1px solid #13152a;flex-shrink:0;flex-wrap:wrap}
+.li{display:flex;align-items:center;gap:4px;font-size:9.5px;color:#4a5580;cursor:pointer;padding:2px 5px;border-radius:3px;border:1px solid transparent;transition:all .15s;white-space:nowrap}
+.li:hover{color:#8090b8}
+.li.on{color:#a0aacc;border-color:currentColor}
+.li .dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+#vp{flex:1;overflow:hidden;position:relative;cursor:grab}
+#vp.drag{cursor:grabbing}
+#stage{position:absolute;width:3000px;height:2100px;transform-origin:0 0}
+#svgl{position:absolute;top:0;left:0;width:3000px;height:2100px;pointer-events:none;z-index:1}
+.ln{fill:none;stroke-width:1.5;opacity:0;transition:opacity .2s}
+.ln.vis{opacity:.35}
+.ln.hi{opacity:1;stroke-width:2}
+.tc{position:absolute;width:185px;background:#0d0e1c;border:1px solid #1c1e35;border-radius:6px;overflow:hidden;z-index:2;cursor:pointer;transition:border-color .2s,box-shadow .2s,opacity .2s}
+.tc:hover{z-index:10}
+.tc.hi{border-color:#5b6af7;box-shadow:0 0 0 2px rgba(91,106,247,.3);z-index:20}
+.tc.rel{z-index:15}
+.tc.dim{opacity:.2}
+.tc.unused{border-style:dashed;opacity:.55}
+.tc.unused .ch{background:repeating-linear-gradient(45deg,transparent,transparent 4px,rgba(255,255,255,.025) 4px,rgba(255,255,255,.025) 8px)}
+.ch{padding:5px 8px;font-size:10px;font-weight:700;letter-spacing:.04em}
+.ch .tn{color:#fff}
+.ch .badge{font-size:8px;padding:1px 4px;border-radius:2px;opacity:.6;color:rgba(255,255,255,.55);background:rgba(255,255,255,.06)}
+.cc{border-top:1px solid rgba(255,255,255,.04)}
+.cr{padding:1.5px 8px;font-size:9px;color:#3d4566;display:flex;align-items:center;gap:3px;line-height:1.5}
+.cr:hover{background:rgba(255,255,255,.03);color:#7c8db5}
+.cr.pk{color:#d4a820}
+.cr.fk{color:#4d7ac7}
+.ci{font-size:8px;flex-shrink:0;width:9px}
+.cn{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+#zc{position:absolute;bottom:14px;left:14px;display:flex;flex-direction:column;gap:4px;z-index:50}
+.zb{width:26px;height:26px;background:rgba(13,14,28,.9);border:1px solid #1c1e35;border-radius:4px;color:#7c8db5;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s}
+.zb:hover{background:#1c1e35;color:#e2e8f0}
+#mm{position:absolute;bottom:14px;right:14px;width:190px;height:120px;background:rgba(9,10,22,.92);border:1px solid #1c1e35;border-radius:6px;z-index:50;overflow:hidden}
+#mmc{width:100%;height:100%}
+.unused-sep{position:absolute;left:0;right:0;border-top:1px dashed #252842;z-index:1}
+.unused-lbl{position:absolute;font-size:9px;color:#2d3355;letter-spacing:.1em;text-transform:uppercase;z-index:1}
+</style>
+</head>
+<body>
+<div id="toolbar">
+  <h1>📊 ID Stock — Papas Premium</h1>
+  <input id="search" placeholder="🔍 Buscar tabla..." type="text" autocomplete="off">
+  <button class="btn" id="btn-unused" onclick="toggleUnused()">👁 Sin Uso</button>
+  <button class="btn" id="btn-conn" onclick="toggleConn()">🔗 Ver Relaciones</button>
+  <button class="btn" onclick="resetView()">↺ Centrar</button>
+  <span id="stats">73 tablas · 11 módulos</span>
+</div>
+<div id="legend"></div>
+<div id="vp">
+  <div id="stage">
+    <svg id="svgl" xmlns="http://www.w3.org/2000/svg"></svg>
+    <div class="unused-sep" style="top:1640px"></div>
+    <div class="unused-lbl" style="top:1618px;left:14px">⚠ Tablas sin uso activo</div>
+  </div>
+</div>
+<div id="zc">
+  <button class="zb" onclick="doZoom(1.2)">+</button>
+  <button class="zb" onclick="doZoom(.83)">−</button>
+</div>
+<canvas id="mmc" style="position:absolute;bottom:14px;right:14px;width:190px;height:120px;background:rgba(9,10,22,.92);border:1px solid #1c1e35;border-radius:6px;z-index:50"></canvas>
+<script>
+const M={
+  security:   {l:'Seguridad y Usuarios',       c:'#8B5CF6'},
+  catalogs:   {l:'Catálogos de Producto',       c:'#06B6D4'},
+  logistics:  {l:'Logística y Transportistas', c:'#3B82F6'},
+  field:      {l:'Registro en Campo',           c:'#22C55E'},
+  gate:       {l:'Caseta y Operaciones',        c:'#F97316'},
+  unloading:  {l:'Descarga (Macheteros)',        c:'#F59E0B'},
+  warehouse:  {l:'Inventario y Almacén',         c:'#14B8A6'},
+  orders:     {l:'Pedidos y Ventas',            c:'#F43F5E'},
+  liquidation:{l:'Liquidación',                 c:'#EAB308'},
+  logs:       {l:'Config. y Logs',              c:'#94A3B8'},
+  unused:     {l:'Sin Uso Actual',              c:'#374151'},
+};
+
+// [id, module, x, y, cols:[name,type]]  type: pk|fk|''
+const T=[
+  // SECURITY
+  ['APPLICATION','security',14,20,[['Id','pk'],['Name',''],['Description',''],['Status','']]],
+  ['PERMISSION_CATEGORY','security',14,170,[['Id','pk'],['Name',''],['Description',''],['Icon',''],['Status','']]],
+  ['PERMISSION','security',14,330,[['Id','pk'],['Name',''],['Description',''],['UrlAccess',''],['Icon',''],['Position',''],['Status',''],['IdAplication','fk'],['IdPermissionCategory','fk']]],
+  ['ROLE','security',14,560,[['Id','pk'],['Name',''],['Description',''],['Status','']]],
+  ['ROLE_PERMISSION','security',14,700,[['Id','pk'],['IdRole','fk'],['IdPermission','fk'],['Status','']]],
+  ['STAFF','security',215,20,[['Id','pk'],['Name',''],['LastName',''],['Email',''],['Phone',''],['CreatedBy',''],['CreatedAt',''],['UpdatedBy',''],['UpdatedAt',''],['Status',''],['IsAuditor',''],['IsSystemUser','']]],
+  ['SYSTEM_USER','security',215,310,[['Id','pk'],['UserName',''],['Password',''],['Status',''],['IdRole','fk'],['IdStaff','fk']]],
+  // CATALOGS
+  ['VARIETIES','catalogs',430,20,[['Id','pk'],['Name',''],['Description',''],['Status','']]],
+  ['SIZES','catalogs',430,170,[['Id','pk'],['Name',''],['Description',''],['Status','']]],
+  ['PACKING','catalogs',430,320,[['Id','pk'],['Name',''],['Description',''],['Weight',''],['WeightEmpty',''],['Status','']]],
+  ['PERCENTAJE_QUALITY','catalogs',430,510,[['Id','pk'],['Name',''],['Status','']]],
+  ['PRODUCT','catalogs',630,20,[['Id','pk'],['Name',''],['Description',''],['Image',''],['Status','']]],
+  ['CUSTOMER_PRODUCT','catalogs',630,200,[['Id','pk'],['Name',''],['IdProduct','fk'],['IdCustomer','fk'],['Kg',''],['Status','']]],
+  ['BOXES','catalogs',630,390,[['Id','pk'],['Name',''],['Description',''],['Capacity',''],['IdBoxType','fk'],['Status','']]],
+  // LOGISTICS
+  ['CARRIERS','logistics',840,20,[['Id','pk'],['Name',''],['RFC',''],['Address',''],['Email',''],['Phone',''],['City',''],['Status',''],['BusinessName','']]],
+  ['DRIVERS','logistics',840,250,[['Id','pk'],['Name',''],['LastName',''],['RFC',''],['Address',''],['City',''],['Phone',''],['IdCarrier','fk'],['DriverLicense',''],['Status','']]],
+  ['TRUCKS','logistics',840,490,[['Id','pk'],['Name',''],['Description',''],['Status','']]],
+  ['COLD_BOXES','logistics',1045,20,[['Id','pk'],['Name',''],['Description',''],['Status','']]],
+  ['CUSTOMERS','logistics',1045,170,[['Id','pk'],['Name',''],['Description',''],['Discount',''],['Status','']]],
+  ['DESTINATIONS','logistics',1045,340,[['Id','pk'],['Name',''],['Description',''],['Address',''],['IdClients','fk'],['Contact',''],['Status','']]],
+  ['TRIP_STATUS','logistics',1045,540,[['Id','pk'],['Name',''],['Status','']]],
+  // FIELD
+  ['FARMERS','field',1255,20,[['Id','pk'],['Name',''],['ShortName',''],['Email',''],['RFC',''],['Address',''],['City',''],['Phone',''],['BusinessName',''],['Password',''],['MtyPreliquidationLink',''],['VsaPreliquidationLink',''],['Status','']]],
+  ['FIELD_LOG','field',1255,300,[['Id','pk'],['TripNumber',''],['IdFarmer','fk'],['FarmRemission',''],['ShippingDate',''],['ArrivalSeal',''],['ArrivalSealPhoto',''],['Origin',''],['IdDestination','fk'],['ExitScaleWeight',''],['IdCarrier','fk'],['Driver',''],['Phone',''],['IdPercentageQuality','fk'],['Intermediary',''],['IdUser','fk'],['IdUserUpdate','fk'],['RegistrationDate',''],['FreightFolio',''],['TripCost',''],['TonCost',''],['Subtotal',''],['Iva',''],['Total',''],['IdTripStatus','fk'],['Status','']]],
+  ['FIELD_LOG_DETAIL','field',1460,20,[['Id','pk'],['Id_Field_Log','fk'],['IdPacking','fk'],['IdVariety','fk'],['IdSize','fk'],['KgShipped',''],['BoxesShipped',''],['Code',''],['Status','']]],
+  ['FARMER_PHOTOS_VIDEOS','field',1460,250,[['Id','pk'],['IdTripNumber','fk'],['IdTripNumberDetail','fk'],['Photo1',''],['Photo2',''],['Photo3',''],['Photo4',''],['Video1',''],['Video2',''],['Status','']]],
+  // GATE
+  ['GATE_REGISTRATION','gate',1670,20,[['Id','pk'],['ArrivalDate',''],['IdTripNumber','fk'],['LicensePlate',''],['LicensePlatePhoto',''],['DriverLicense',''],['DriverLicensePhoto',''],['ArrivalSeal',''],['ArrivalSealPhoto',''],['TruckType',''],['PotatoTemperature',''],['PotatoTemperaturePhoto',''],['TruckTemperaturePhoto',''],['DriverName',''],['DriverPhone',''],['Comments',''],['IdRegistredUser','fk'],['IdExitUser','fk'],['IdCarrier','fk'],['IdUnloadStatus','fk'],['ExitPhoto',''],['ExitDate',''],['Status','']]],
+  ['UNLOAD_STATUS','gate',1670,460,[['Id','pk'],['Name',''],['Description',''],['Status','']]],
+  ['OPERATION','gate',1880,20,[['Id','pk'],['IdRamp','fk'],['IdOperationDestination','fk'],['IdTripNumber','fk'],['IdRegistredUser','fk'],['CreateDateTime',''],['Comments',''],['Status','']]],
+  ['OPERATION_DESTINATION','gate',1880,230,[['Id','pk'],['Name',''],['Description',''],['Status','']]],
+  ['RAMPS','gate',1880,380,[['Id','pk'],['Name',''],['Description',''],['Status','']]],
+  ['DAILY_UNIT_INSPECTIONS','gate',1880,510,[['Id','pk'],['IdTripNumber','fk'],['IdGateRegistration','fk'],['IdRegistredUser','fk'],['InspectionDatetime',''],['AvgTemperature',''],['BoxTemperature',''],['PotatoTemperaturePhoto',''],['TruckTemperaturePhoto',''],['DieselLevel',''],['DieselLevelPhoto',''],['Comments',''],['Status','']]],
+  // UNLOADING
+  ['TYPE_UNLOADER_ACTION','unloading',14,930,[['Id','pk'],['Name',''],['Status','']]],
+  ['UNLOADER_ACTION','unloading',14,1060,[['Id','pk'],['Name',''],['IdActionType','fk'],['CostBurlap',''],['BurlapFee',''],['CostBox',''],['BoxFee',''],['Status','']]],
+  ['SHIFT_STATUS','unloading',215,930,[['Id','pk'],['Name',''],['Description',''],['Status','']]],
+  ['UNLOADER_SHIFT','unloading',215,1070,[['Id','pk'],['IdUser','fk'],['StartDateTime',''],['EndDateTime',''],['IdShiftStatus','fk'],['Status','']]],
+  ['UNLOADER_FORMAT','unloading',14,1240,[['Id','pk'],['IdTripNumber','fk'],['IdTripNumberDetail','fk'],['RampOrCf',''],['IdUnloaderAction','fk'],['IdShift','fk'],['IdRamp','fk'],['SoilWeight',''],['StartDateTime',''],['FinishDateTime',''],['CreateDateTime',''],['IdUser','fk'],['Quantity',''],['PricePerTon',''],['Weight',''],['Import',''],['Cut',''],['Total',''],['Comments',''],['IsPaid',''],['Status','']]],
+  ['UNLOADER_PARAMS','unloading',215,1240,[['Id','pk'],['IdPacking','fk'],['Weight',''],['WeightEmpty',''],['UnloadingFee',''],['Status','']]],
+  ['WASHING','unloading',430,930,[['Id','pk'],['IdUnloaderFormat','fk'],['QuantityRecived',''],['KgRecived',''],['QuantityWashed',''],['KgWashed',''],['IdUser','fk'],['CreateDateTime',''],['IsEnabled',''],['Status','']]],
+  // WAREHOUSE
+  ['COLD_ROOMS','warehouse',640,930,[['Id','pk'],['Name',''],['Description',''],['BarCode',''],['Status','']]],
+  ['ZONE','warehouse',640,1090,[['Id','pk'],['Name',''],['Description',''],['IdColdRoom','fk'],['Status','']]],
+  ['LOCATION','warehouse',640,1250,[['Id','pk'],['Name',''],['Description',''],['IdColdRoom','fk'],['IdZone','fk'],['BarCode',''],['Depth',''],['Status','']]],
+  ['PALLET','warehouse',840,930,[['Id','pk'],['IdTripNumber','fk'],['IdTripNumberDetail','fk'],['IdSize','fk'],['IdVariety','fk'],['IdPacking','fk'],['IdUnloaderFormat','fk'],['Quantity',''],['IdUser','fk'],['BarCode',''],['CurrentQuantity',''],['IdShift','fk'],['IdLocation','fk'],['IdColdRoom','fk'],['IsPrinted',''],['InSite',''],['Status','']]],
+  ['PALLET_CAPACITY','warehouse',840,1270,[['Id','pk'],['Name',''],['Description',''],['Capacity',''],['Status','']]],
+  ['INVENTORY','warehouse',1045,930,[['Id','pk'],['IdColdRoom','fk'],['IdUser','fk'],['CreateDateTime',''],['Comment',''],['Status','']]],
+  ['INVENTORY_DETAIL','warehouse',1045,1100,[['Id','pk'],['IdInventory','fk'],['IdPallet','fk'],['CaptureDateTime','']]],
+  // ORDERS
+  ['ORDER_STATUS','orders',1255,930,[['Id','pk'],['Name',''],['Description',''],['Status','']]],
+  ['DELIVERY_STATUS','orders',1255,1080,[['Id','pk'],['Name',''],['Description',''],['Status','']]],
+  ['ORDER','orders',1255,1230,[['Id','pk'],['OrderDateTime',''],['IdCustomer','fk'],['IdTruck','fk'],['IdColdBox','fk'],['IdDriver','fk'],['Comments',''],['IdUser','fk'],['CreateDateTime',''],['IdUserUpdate','fk'],['IdOrderStatus','fk'],['SecuritySeal',''],['IdDeliveryStatus','fk'],['Status','']]],
+  ['ORDER_DETAIL_STATUS','orders',1460,930,[['Id','pk'],['Name',''],['Description',''],['Status','']]],
+  ['ORDER_DETAIL','orders',1460,1070,[['Id','pk'],['IdOrder','fk'],['IdProductCustomer','fk'],['IdOrderDetailStatus','fk'],['Units',''],['UnitsCompleted',''],['Kg',''],['KgCompleted',''],['Invoice',''],['KgPrice',''],['KgReturned',''],['UnitsRejected',''],['IdRejectionReason','fk'],['IdRejectionType','fk'],['IdRejectionTypeDetail','fk'],['InvoicePrice',''],['InvoicePricePaid',''],['FinalDisscount',''],['Status','']]],
+  ['PALLET_ORDER_TYPE','orders',1670,930,[['Id','pk'],['Name',''],['Description',''],['Status','']]],
+  ['PALLET_ORDER','orders',1670,1070,[['Id','pk'],['TotalQuantity',''],['IdUser','fk'],['BarCode',''],['IdUserUpdate','fk'],['CurrentQuantity',''],['IdLocation','fk'],['IdZone','fk'],['IdColdRoom','fk'],['IdCustomer','fk'],['IdOrder','fk'],['IdOrderDetail','fk'],['IdProductCustomer','fk'],['IdProduct','fk'],['KgWeight',''],['NetoWeight',''],['IdPalletOrderType','fk'],['IdBox','fk'],['IdPalletCapacity','fk'],['InSite',''],['Status','']]],
+  ['PALLET_ORDER_DETAIL','orders',1880,930,[['Id','pk'],['IdPalletOrder','fk'],['IdTripNumber','fk'],['IdTripNumberDetail','fk'],['IdSize','fk'],['IdVariety','fk'],['IdPacking','fk'],['Quantity',''],['Status','']]],
+  ['REJECTION_REASONS','orders',1880,1170,[['Id','pk'],['Name',''],['Description',''],['Status','']]],
+  ['REJECTION_TYPES','orders',2090,930,[['Id','pk'],['Type',''],['Description',''],['IdRejectionReasons','fk'],['Status','']]],
+  ['REJECTION_TYPES_DETAIL','orders',2090,1090,[['Id','pk'],['Name',''],['Description',''],['IdRejectionType','fk'],['Status','']]],
+  ['REWORKS','orders',2090,1240,[['Id','pk'],['IdTripNumber','fk'],['IdTripNumberDetail','fk'],['IdProduct','fk'],['CodeTripNumberDetail',''],['TotalQuantity',''],['IdUser','fk'],['CreateDateTime',''],['UpdateDateTime',''],['Status','']]],
+  // LIQUIDATION
+  ['LIQUIDACION_COLOR','liquidation',2300,930,[['Id','pk'],['Color',''],['Description',''],['Status','']]],
+  ['LIQUIDACION_MANUAL','liquidation',2300,1070,[['Id','pk'],['IdTripNumber','fk'],['KgRecibidos',''],['KgValidados',''],['Cajas',''],['CostoOperacional',''],['PrecioLiquidar',''],['EstadoPago',''],['IdColor','fk'],['Status','']]],
+  // LOGS
+  ['MOVEMENT_CATEGORY','logs',2300,1280,[['Id','pk'],['Name',''],['Description',''],['Status','']]],
+  ['MOVEMENT_LOG','logs',2300,1420,[['Id','pk'],['RecordDt',''],['IdMovementCategory','fk'],['Description','']]],
+  ['LOG_METHODS','logs',2300,1550,[['Id','pk'],['Name',''],['Create_Date','']]],
+  // UNUSED
+  ['BOX_TYPES','unused',14,1660,[['Id','pk'],['Type',''],['Capacity',''],['Description',''],['Status','']]],
+  ['CREW_LEADER','unused',215,1660,[['Id','pk'],['Name',''],['LastName',''],['Status','']]],
+  ['EMAIL_RECIPIENT','unused',430,1660,[['Id','pk'],['Email',''],['Status','']]],
+  ['FINAL_SALE','unused',630,1660,[['Id','pk'],['Name',''],['Description','']]],
+  ['PALLET_MOVEMENTS','unused',830,1660,[['Id','pk'],['IdPallet','fk'],['MovementId',''],['IdOriginLocation','fk'],['IdDestinationLocation','fk'],['MovementDate',''],['IdStaff','fk'],['Comments','']]],
+  ['PALLETS','unused',1045,1660,[['Id','pk'],['QRCode',''],['IdPurchare',''],['Type',''],['CreationDate',''],['NumberOfBags',''],['GrossWeight',''],['NetWeight',''],['IdLocation','fk'],['StateId','fk'],['Statu','']]],
+  ['POST_SALE_CONTROL','unused',1255,1660,[['Id','pk'],['IdOrder','fk'],['IdFinalSale','fk'],['IdRejectionReason','fk'],['RejectedQuantity',''],['Comments',''],['RegistrationDate',''],['RegisteredByUserID','fk'],['Status','']]],
+  ['RACKS','unused',1460,1660,[['Id','pk'],['Name',''],['Description',''],['IdColdRoom','fk'],['Status','']]],
+  ['STATE','unused',1670,1660,[['Id','pk'],['Name',''],['Description',''],['Status','']]],
+  ['VEHICLE_TRACKING','unused',1880,1660,[['Id','pk'],['IdGateRegistration','fk'],['ControlDate',''],['BoxTemperature',''],['AverageTemperature',''],['DieselLevel',''],['GeneralConditions',''],['IdRegisteredUser','fk']]],
+  ['WASTE','unused',2090,1660,[['Id','pk'],['IdTripNumber','fk'],['IdTripNumberDetail','fk'],['IdProduct','fk'],['Quantity',''],['Kg',''],['IdUser','fk'],['CreateDateTime',''],['Total',''],['Status','']]],
+  ['WASTE_TYPE','unused',2300,1660,[['Id','pk'],['Name',''],['Description',''],['Status','']]],
+];
+
+const R=[
+  ['SYSTEM_USER','ROLE'],['SYSTEM_USER','STAFF'],
+  ['ROLE_PERMISSION','ROLE'],['ROLE_PERMISSION','PERMISSION'],
+  ['PERMISSION','APPLICATION'],['PERMISSION','PERMISSION_CATEGORY'],
+  ['CUSTOMER_PRODUCT','PRODUCT'],['CUSTOMER_PRODUCT','CUSTOMERS'],
+  ['BOXES','BOX_TYPES'],
+  ['DRIVERS','CARRIERS'],['DESTINATIONS','CUSTOMERS'],
+  ['FIELD_LOG','FARMERS'],['FIELD_LOG','DESTINATIONS'],['FIELD_LOG','CARRIERS'],
+  ['FIELD_LOG','PERCENTAJE_QUALITY'],['FIELD_LOG','STAFF'],['FIELD_LOG','TRIP_STATUS'],
+  ['FIELD_LOG_DETAIL','FIELD_LOG'],['FIELD_LOG_DETAIL','PACKING'],['FIELD_LOG_DETAIL','VARIETIES'],['FIELD_LOG_DETAIL','SIZES'],
+  ['FARMER_PHOTOS_VIDEOS','FIELD_LOG'],['FARMER_PHOTOS_VIDEOS','FIELD_LOG_DETAIL'],
+  ['GATE_REGISTRATION','FIELD_LOG'],['GATE_REGISTRATION','STAFF'],['GATE_REGISTRATION','CARRIERS'],['GATE_REGISTRATION','UNLOAD_STATUS'],
+  ['DAILY_UNIT_INSPECTIONS','FIELD_LOG'],['DAILY_UNIT_INSPECTIONS','GATE_REGISTRATION'],['DAILY_UNIT_INSPECTIONS','STAFF'],
+  ['OPERATION','RAMPS'],['OPERATION','OPERATION_DESTINATION'],['OPERATION','FIELD_LOG'],['OPERATION','STAFF'],
+  ['UNLOADER_ACTION','TYPE_UNLOADER_ACTION'],
+  ['UNLOADER_SHIFT','STAFF'],['UNLOADER_SHIFT','SHIFT_STATUS'],
+  ['UNLOADER_FORMAT','FIELD_LOG'],['UNLOADER_FORMAT','FIELD_LOG_DETAIL'],['UNLOADER_FORMAT','UNLOADER_ACTION'],
+  ['UNLOADER_FORMAT','UNLOADER_SHIFT'],['UNLOADER_FORMAT','RAMPS'],['UNLOADER_FORMAT','STAFF'],
+  ['UNLOADER_PARAMS','PACKING'],
+  ['WASHING','UNLOADER_FORMAT'],['WASHING','STAFF'],
+  ['ZONE','COLD_ROOMS'],
+  ['LOCATION','COLD_ROOMS'],['LOCATION','ZONE'],
+  ['PALLET','FIELD_LOG'],['PALLET','FIELD_LOG_DETAIL'],['PALLET','SIZES'],['PALLET','VARIETIES'],['PALLET','PACKING'],
+  ['PALLET','UNLOADER_FORMAT'],['PALLET','STAFF'],['PALLET','UNLOADER_SHIFT'],['PALLET','LOCATION'],['PALLET','COLD_ROOMS'],
+  ['INVENTORY','COLD_ROOMS'],['INVENTORY','STAFF'],
+  ['INVENTORY_DETAIL','INVENTORY'],['INVENTORY_DETAIL','PALLET'],
+  ['ORDER','CUSTOMERS'],['ORDER','TRUCKS'],['ORDER','COLD_BOXES'],['ORDER','DRIVERS'],
+  ['ORDER','STAFF'],['ORDER','ORDER_STATUS'],['ORDER','DELIVERY_STATUS'],
+  ['ORDER_DETAIL','ORDER'],['ORDER_DETAIL','CUSTOMER_PRODUCT'],['ORDER_DETAIL','ORDER_DETAIL_STATUS'],
+  ['ORDER_DETAIL','REJECTION_REASONS'],['ORDER_DETAIL','REJECTION_TYPES'],['ORDER_DETAIL','REJECTION_TYPES_DETAIL'],
+  ['PALLET_ORDER','STAFF'],['PALLET_ORDER','LOCATION'],['PALLET_ORDER','ZONE'],['PALLET_ORDER','COLD_ROOMS'],
+  ['PALLET_ORDER','CUSTOMERS'],['PALLET_ORDER','ORDER'],['PALLET_ORDER','ORDER_DETAIL'],['PALLET_ORDER','CUSTOMER_PRODUCT'],
+  ['PALLET_ORDER','PRODUCT'],['PALLET_ORDER','PALLET_ORDER_TYPE'],['PALLET_ORDER','BOXES'],['PALLET_ORDER','PALLET_CAPACITY'],
+  ['PALLET_ORDER_DETAIL','PALLET_ORDER'],['PALLET_ORDER_DETAIL','FIELD_LOG'],['PALLET_ORDER_DETAIL','FIELD_LOG_DETAIL'],
+  ['PALLET_ORDER_DETAIL','SIZES'],['PALLET_ORDER_DETAIL','VARIETIES'],['PALLET_ORDER_DETAIL','PACKING'],
+  ['REJECTION_TYPES','REJECTION_REASONS'],['REJECTION_TYPES_DETAIL','REJECTION_TYPES'],
+  ['REWORKS','FIELD_LOG'],['REWORKS','FIELD_LOG_DETAIL'],['REWORKS','PRODUCT'],['REWORKS','STAFF'],
+  ['LIQUIDACION_MANUAL','FIELD_LOG'],['LIQUIDACION_MANUAL','LIQUIDACION_COLOR'],
+  ['MOVEMENT_LOG','MOVEMENT_CATEGORY'],
+  ['PALLET_MOVEMENTS','PALLET'],['PALLET_MOVEMENTS','LOCATION'],['PALLET_MOVEMENTS','STAFF'],
+  ['PALLETS','LOCATION'],['PALLETS','STATE'],
+  ['POST_SALE_CONTROL','ORDER'],['POST_SALE_CONTROL','FINAL_SALE'],['POST_SALE_CONTROL','REJECTION_REASONS'],['POST_SALE_CONTROL','STAFF'],
+  ['RACKS','COLD_ROOMS'],
+  ['VEHICLE_TRACKING','GATE_REGISTRATION'],['VEHICLE_TRACKING','STAFF'],
+  ['WASTE','FIELD_LOG'],['WASTE','FIELD_LOG_DETAIL'],['WASTE','PRODUCT'],['WASTE','STAFF'],
+];
+
+const tmap=Object.fromEntries(T.map(t=>[t[0],t]));
+const stage=document.getElementById('stage');
+const svgl=document.getElementById('svgl');
+const vp=document.getElementById('vp');
+let sc=0.45,px=0,py=0,dragging=false,ds=null,ps=null,sel=null,showU=false,showC=false;
+const activeM=new Set(Object.keys(M));
+const lineMap={};
+
+// Legend
+const leg=document.getElementById('legend');
+Object.entries(M).forEach(([k,{l,c}])=>{
+  const el=document.createElement('div');
+  el.className='li on'; el.dataset.mod=k;
+  el.innerHTML=`<span class="dot" style="background:${c}"></span><span>${l}</span>`;
+  el.onclick=()=>toggleMod(k,el);
+  leg.appendChild(el);
+});
+
+// Build cards
+T.forEach(([id,mod,x,y,cols])=>{
+  const {c}=M[mod];
+  const card=document.createElement('div');
+  card.className='tc'+(mod==='unused'?' unused':'');
+  card.id='c-'+id; card.dataset.t=id; card.dataset.m=mod;
+  card.style.cssText=`left:${x}px;top:${y}px`;
+  const h=document.createElement('div');
+  h.className='ch';
+  h.style.cssText=`background:${c}18;border-bottom:2px solid ${c}50`;
+  h.innerHTML=`<span class="tn" style="color:${c}">${id}</span>`;
+  const cc=document.createElement('div'); cc.className='cc';
+  cols.forEach(([n,tp])=>{
+    const r=document.createElement('div');
+    r.className='cr'+(tp==='pk'?' pk':tp==='fk'?' fk':'');
+    r.innerHTML=`<span class="ci">${tp==='pk'?'🔑':tp==='fk'?'⤷':'·'}</span><span class="cn">${n}</span>`;
+    cc.appendChild(r);
+  });
+  card.appendChild(h); card.appendChild(cc);
+  card.onclick=e=>{e.stopPropagation();selectT(id);};
+  stage.appendChild(card);
+});
+
+// Build SVG lines
+R.forEach(([f,t])=>{
+  const mod=tmap[f]?.[1]; const c=M[mod]?.c||'#5b6af7';
+  const path=document.createElementNS('http://www.w3.org/2000/svg','path');
+  path.classList.add('ln'); path.setAttribute('stroke',c);
+  path.id=`ln-${f}-${t}`; svgl.appendChild(path);
+  if(!lineMap[f])lineMap[f]=[];
+  if(!lineMap[t])lineMap[t]=[];
+  lineMap[f].push({el:path,other:t});
+  lineMap[t].push({el:path,other:f});
+});
+
+function cardBounds(id){
+  const el=document.getElementById('c-'+id); if(!el) return null;
+  const x=parseInt(el.style.left),y=parseInt(el.style.top),w=el.offsetWidth||185,h=el.offsetHeight||200;
+  return{x,y,w,h,cx:x+w/2,cy:y+h/2,l:x,r:x+w,t:y,b:y+h};
+}
+
+function updLines(){
+  R.forEach(([f,t])=>{
+    const p=document.getElementById(`ln-${f}-${t}`); if(!p) return;
+    const a=cardBounds(f),b=cardBounds(t); if(!a||!b) return;
+    let x1,y1,x2,y2;
+    if(a.cx<b.cx){x1=a.r;y1=a.cy;x2=b.l;y2=b.cy;}
+    else if(a.cx>b.cx){x1=a.l;y1=a.cy;x2=b.r;y2=b.cy;}
+    else{x1=a.cx;y1=a.b;x2=b.cx;y2=b.t;}
+    const dx=Math.abs(x2-x1)*0.45;
+    p.setAttribute('d',`M${x1},${y1} C${x1+dx*(a.cx<b.cx?1:-1)},${y1} ${x2+dx*(a.cx<b.cx?-1:1)},${y2} ${x2},${y2}`);
+  });
+}
+
+function applyT(){
+  stage.style.transform=`translate(${px}px,${py}px) scale(${sc})`;
+  updLines(); drawMM();
+}
+
+function selectT(id){
+  if(sel===id){sel=null;clearHi();if(showC)showAll();return;}
+  sel=id; hiTable(id);
+}
+
+function hiTable(id){
+  document.querySelectorAll('.tc').forEach(c=>{c.classList.remove('hi','rel','dim');c.classList.add('dim');});
+  svgl.querySelectorAll('.ln').forEach(l=>l.classList.remove('vis','hi'));
+  const rel=new Set([id]);
+  R.forEach(([f,t])=>{
+    if(f===id||t===id){
+      rel.add(f);rel.add(t);
+      const el=document.getElementById(`ln-${f}-${t}`);
+      if(el){el.classList.add('hi');el.classList.remove('vis');}
+    }
+  });
+  rel.forEach(rid=>{
+    const c=document.getElementById('c-'+rid);
+    if(c){c.classList.remove('dim');c.classList.add(rid===id?'hi':'rel');}
+  });
+}
+
+function clearHi(){
+  document.querySelectorAll('.tc').forEach(c=>c.classList.remove('hi','rel','dim'));
+  svgl.querySelectorAll('.ln').forEach(l=>l.classList.remove('vis','hi'));
+}
+
+function showAll(){svgl.querySelectorAll('.ln').forEach(l=>{if(l.style.display!=='none')l.classList.add('vis');});}
+
+// Pan/Zoom
+let didDrag=false;
+vp.addEventListener('mousedown',e=>{
+  if(e.target===vp||e.target===stage||e.target.tagName==='svg'||e.target.tagName==='path'){
+    dragging=true; didDrag=false;
+    ds={x:e.clientX,y:e.clientY}; ps={x:px,y:py};
+    vp.classList.add('drag');
+  }
+});
+window.addEventListener('mousemove',e=>{
+  if(!dragging)return;
+  const moved=Math.abs(e.clientX-ds.x)>4||Math.abs(e.clientY-ds.y)>4;
+  if(moved) didDrag=true;
+  px=ps.x+(e.clientX-ds.x); py=ps.y+(e.clientY-ds.y); applyT();
+});
+window.addEventListener('mouseup',()=>{dragging=false;vp.classList.remove('drag');});
+vp.addEventListener('wheel',e=>{
+  e.preventDefault();
+  const f=e.deltaY<0?1.1:0.91;
+  const r=vp.getBoundingClientRect();
+  const mx=e.clientX-r.left,my=e.clientY-r.top;
+  px=mx-(mx-px)*f; py=my-(my-py)*f;
+  sc=Math.max(.12,Math.min(2,sc*f)); applyT();
+},{passive:false});
+
+function doZoom(f){
+  const cx=vp.clientWidth/2,cy=vp.clientHeight/2;
+  px=cx-(cx-px)*f; py=cy-(cy-py)*f;
+  sc=Math.max(.12,Math.min(2,sc*f)); applyT();
+}
+
+function resetView(){sc=0.42;px=10;py=10;applyT();}
+
+// Search
+document.getElementById('search').addEventListener('input',e=>{
+  const q=e.target.value.toLowerCase();
+  document.querySelectorAll('.tc').forEach(c=>{
+    const name=c.dataset.t.toLowerCase();
+    c.style.outline=!q?'':name.includes(q)?'2px solid #5b6af7':'';
+    c.style.zIndex=!q?'':name.includes(q)?'30':'';
+  });
+});
+
+// Toggle unused
+function toggleUnused(){
+  showU=!showU;
+  document.getElementById('btn-unused').classList.toggle('on',showU);
+  document.querySelectorAll('.tc.unused').forEach(c=>c.style.display=showU?'':'none');
+  document.querySelectorAll('.ln').forEach(l=>{
+    const parts=l.id.split('-');
+    const f=parts.slice(1,-1).join('-'),t=parts[parts.length-1];
+    const fn=l.id.replace('ln-','');
+    // simpler approach: check if either table is unused
+    const tables=fn.split('-');
+    // actually let's just check if any endpoint is an unused table
+    const fromId=l.id.replace(/^ln-/,'').replace(/-[^-]+$/,'');
+    const toId=l.id.replace(/^ln-[^-]+-/,'').replace(/-.*$/,'');
+  });
+  // Redraw connection visibility
+  R.forEach(([f,t])=>{
+    const el=document.getElementById(`ln-${f}-${t}`); if(!el) return;
+    const fm=tmap[f]?.[1],tm=tmap[t]?.[1];
+    const isUnused=fm==='unused'||tm==='unused';
+    if(!showU&&isUnused){el.style.display='none';el.classList.remove('vis','hi');}
+    else{el.style.display='';}
+  });
+  if(showC&&sel===null)showAll();
+}
+
+// Toggle connections
+function toggleConn(){
+  showC=!showC;
+  document.getElementById('btn-conn').classList.toggle('on',showC);
+  if(showC&&sel===null)showAll();
+  else if(!showC){clearHi();if(sel)hiTable(sel);}
+}
+
+// Module filter
+function toggleMod(k,el){
+  if(activeM.has(k)){if(activeM.size===1)return;activeM.delete(k);el.classList.remove('on');el.style.opacity='.35';}
+  else{activeM.add(k);el.classList.add('on');el.style.opacity='';}
+  document.querySelectorAll('.tc').forEach(c=>{c.style.visibility=activeM.has(c.dataset.m)?'':'hidden';});
+}
+
+// click bg = deselect (solo si no hubo arrastre)
+vp.addEventListener('click',e=>{
+  if(didDrag){didDrag=false;return;}
+  if(e.target===vp||e.target===stage||e.target.tagName==='svg'){
+    sel=null;clearHi();if(showC)showAll();
+  }
+});
+
+// Minimap
+const mmc=document.getElementById('mmc');
+const ctx=mmc.getContext('2d');
+mmc.width=190*2; mmc.height=120*2;
+function drawMM(){
+  const W=3000,H=2100,mw=380,mh=240,s=mw/W;
+  ctx.clearRect(0,0,mw,mh);
+  ctx.fillStyle='#090a16'; ctx.fillRect(0,0,mw,mh);
+  // Draw table dots
+  T.forEach(([id,mod,x,y,cols])=>{
+    const {c}=M[mod];
+    ctx.fillStyle=c+'99';
+    ctx.fillRect(x*s,y*s,185*s,20*s);
+  });
+  // Draw viewport rect
+  const r=vp.getBoundingClientRect();
+  const vx=-px/sc,vy=-py/sc,vw=r.width/sc,vh=r.height/sc;
+  ctx.strokeStyle='rgba(255,255,255,.4)';ctx.lineWidth=1;
+  ctx.strokeRect(vx*s,vy*s,vw*s,vh*s);
+}
+
+// Init
+setTimeout(()=>{
+  updLines();
+  document.querySelectorAll('.tc.unused').forEach(c=>c.style.display='none');
+  resetView();
+  drawMM();
+},150);
+</script>
+</body>
+</html>
